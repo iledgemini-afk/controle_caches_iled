@@ -1,0 +1,1130 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ILED · Fechamento de Cachês & Extratos</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<style>
+:root{
+  --bg:#08080a; --bg2:#0d0d11; --panel:#14141a; --panel2:#1b1c24; --panelh:#20222c;
+  --line:rgba(255,255,255,.075); --line2:rgba(255,255,255,.14);
+  --txt:#f3f4f7; --mut:#9aa0ac; --mut2:#6d7280;
+  --red:#e10600; --red2:#ff2b38; --grn:#37c98a; --amber:#f2b53c; --blue:#3d74ff;
+  --shadow:0 10px 40px rgba(0,0,0,.5);
+  --mono:ui-monospace,"SF Mono","Cascadia Mono","Roboto Mono",Menlo,Consolas,monospace;
+  --sans:"Inter",system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{background:var(--bg);color:var(--txt);font-family:var(--sans);-webkit-font-smoothing:antialiased;font-size:14px}
+body{background:
+  radial-gradient(1200px 600px at 82% -10%, rgba(225,6,0,.10), transparent 60%),
+  radial-gradient(900px 500px at 0% 0%, rgba(61,116,255,.05), transparent 55%),
+  var(--bg);min-height:100vh}
+.pixbar{height:3px;width:100%;background:linear-gradient(90deg,var(--red) 0 25%,var(--amber) 25% 50%,#f5f5f5 50% 75%,var(--blue) 75% 100%)}
+a{color:inherit}
+button{font-family:inherit;cursor:pointer}
+input,select{font-family:inherit}
+::selection{background:var(--red);color:#fff}
+
+/* ---- header ---- */
+header{position:sticky;top:0;z-index:40;background:rgba(8,8,10,.82);backdrop-filter:blur(14px);border-bottom:1px solid var(--line)}
+.hwrap{max-width:1320px;margin:0 auto;padding:14px 22px;display:flex;align-items:center;gap:18px}
+.logo{height:38px;border-radius:6px;display:block}
+.brand{display:flex;flex-direction:column;line-height:1.15}
+.brand b{font-size:15px;letter-spacing:.02em;font-weight:700}
+.brand span{font-size:11px;color:var(--mut);letter-spacing:.14em;text-transform:uppercase}
+.period-pill{margin-left:auto;display:flex;align-items:center;gap:9px;background:var(--panel);border:1px solid var(--line);
+  padding:7px 14px;border-radius:999px;font-size:12.5px;color:var(--mut)}
+.period-pill b{color:var(--txt);font-family:var(--mono)}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--grn);box-shadow:0 0 10px var(--grn)}
+
+/* ---- tabs ---- */
+nav{max-width:1320px;margin:0 auto;padding:0 22px;display:flex;gap:4px;border-bottom:1px solid var(--line);overflow-x:auto}
+.tab{position:relative;padding:14px 16px 15px;color:var(--mut);font-size:13px;font-weight:600;background:none;border:none;white-space:nowrap;letter-spacing:.01em}
+.tab:hover{color:var(--txt)}
+.tab.active{color:var(--txt)}
+.tab.active::after{content:"";position:absolute;left:10px;right:10px;bottom:-1px;height:3px;
+  background:linear-gradient(90deg,var(--red) 0 25%,var(--amber) 25% 50%,#f5f5f5 50% 75%,var(--blue) 75% 100%);border-radius:3px}
+.tab .num{font-family:var(--mono);font-size:10px;color:var(--mut2);margin-right:7px}
+
+main{max-width:1320px;margin:0 auto;padding:26px 22px 90px}
+.view{display:none;animation:fade .25s ease}
+.view.active{display:block}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+
+/* ---- generic ---- */
+.eyebrow{font-size:10.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--mut2);font-weight:700;margin-bottom:4px;display:flex;align-items:center;gap:8px}
+.eyebrow::before{content:"";width:14px;height:2px;background:var(--red)}
+h2.sec{font-size:19px;font-weight:700;letter-spacing:-.01em;margin-bottom:2px}
+.sub{color:var(--mut);font-size:12.5px;margin-bottom:18px}
+.panel{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:14px}
+.pad{padding:18px}
+
+/* ---- filter row ---- */
+.filters{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin-bottom:20px}
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--mut2);font-weight:700}
+.inp,select.inp{background:var(--panel2);border:1px solid var(--line2);color:var(--txt);padding:9px 12px;border-radius:9px;font-size:13.5px;min-width:150px;outline:none;transition:border-color .15s}
+.inp:focus{border-color:var(--red)}
+select.inp{cursor:pointer}
+.btn{background:var(--panel2);border:1px solid var(--line2);color:var(--txt);padding:9px 15px;border-radius:9px;font-size:13px;font-weight:600;transition:.15s}
+.btn:hover{border-color:var(--line2);background:var(--panelh)}
+.btn.primary{background:var(--red);border-color:var(--red);color:#fff}
+.btn.primary:hover{background:var(--red2);box-shadow:0 6px 20px rgba(225,6,0,.35)}
+.btn.ghost{background:none}
+.btn.sm{padding:6px 11px;font-size:12px}
+.btn.danger{color:var(--red2);border-color:rgba(225,6,0,.4)}
+.btn.danger:hover{background:rgba(225,6,0,.12)}
+
+/* ---- cards ---- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(190px,1fr));gap:14px;margin-bottom:22px}
+.card{background:linear-gradient(180deg,var(--panel),var(--bg2));border:1px solid var(--line);border-radius:14px;padding:16px 17px;position:relative;overflow:hidden}
+.card .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--mut);font-weight:600;display:flex;align-items:center;gap:7px}
+.card .v{font-family:var(--mono);font-size:25px;font-weight:600;margin-top:10px;letter-spacing:-.02em}
+.card .d{font-size:11.5px;color:var(--mut2);margin-top:5px}
+.card.hero{border-color:rgba(225,6,0,.35)}
+.card.hero::before{content:"";position:absolute;inset:0 auto auto 0;height:3px;width:100%;background:linear-gradient(90deg,var(--red),transparent)}
+.card.hero .v{color:#fff}
+.ic{width:16px;height:16px;opacity:.8}
+.chip{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:600;padding:3px 9px;border-radius:999px;border:1px solid var(--line2)}
+.chip.grn{color:var(--grn);border-color:rgba(55,201,138,.35);background:rgba(55,201,138,.08)}
+.chip.red{color:var(--red2);border-color:rgba(255,43,56,.35);background:rgba(255,43,56,.08)}
+.histgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:12px}
+.histcard{background:var(--panel2);border:1px solid var(--line2);border-radius:12px;padding:14px;cursor:pointer;transition:.15s}
+.histcard:hover{border-color:var(--red);transform:translateY(-2px)}
+.hc-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+.hc-per{font-size:11px;color:var(--mut2);font-family:var(--mono)}
+.hc-tot{font-size:20px;font-weight:700;color:var(--txt);margin-top:6px;font-family:var(--mono)}
+.hc-sub{font-size:11px;color:var(--mut);margin-top:2px}
+.chip.amb{color:var(--amber);border-color:rgba(242,181,60,.35);background:rgba(242,181,60,.08)}
+.chip.blu{color:var(--blue);border-color:rgba(61,116,255,.35);background:rgba(61,116,255,.08)}
+.chip.gry{color:var(--mut);}
+
+/* ---- tables ---- */
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th{text-align:left;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--mut2);font-weight:700;padding:11px 12px;border-bottom:1px solid var(--line2);position:sticky;top:0;background:var(--panel)}
+.tbl td{padding:11px 12px;border-bottom:1px solid var(--line)}
+.tbl tr:hover td{background:rgba(255,255,255,.02)}
+.tbl td.num,.tbl th.num{text-align:right;font-family:var(--mono)}
+.tbl tr:last-child td{border-bottom:none}
+.tbl .totrow td{border-top:2px solid var(--line2);font-weight:700;background:rgba(225,6,0,.05)}
+.name-cell{font-weight:600}
+.muted{color:var(--mut)}
+.scroll{overflow:auto;border-radius:12px;border:1px solid var(--line);max-height:560px}
+.mono{font-family:var(--mono)}
+.tiny{font-size:11px;color:var(--mut2)}
+
+/* ---- extrato specific ---- */
+.grid2{display:grid;grid-template-columns:1.6fr 1fr;gap:18px}
+@media(max-width:940px){.grid2{grid-template-columns:1fr}.hide-sm{display:none}}
+.stat-row{display:flex;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
+.stat-row:last-child{border-bottom:none}
+.stat-row b{font-family:var(--mono)}
+.addbox{border:1px dashed var(--line2);border-radius:12px;padding:14px;margin-top:12px}
+.addbox h4{font-size:12.5px;font-weight:700;margin-bottom:2px;display:flex;align-items:center;gap:8px}
+.addline{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.addline .inp{min-width:0}
+.extra-item{display:flex;align-items:center;gap:10px;padding:9px 11px;background:var(--panel2);border:1px solid var(--line);border-radius:9px;margin-top:8px;font-size:12.5px}
+.extra-item .x{margin-left:auto;color:var(--mut);cursor:pointer;font-weight:700;padding:2px 6px;border-radius:6px}
+.extra-item .x:hover{color:var(--red2);background:rgba(225,6,0,.1)}
+.empty{color:var(--mut2);font-size:12.5px;padding:26px;text-align:center}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--mut);margin-top:10px}
+.legend span{display:inline-flex;align-items:center;gap:6px}
+.sw{width:9px;height:9px;border-radius:3px}
+
+/* config / engine */
+.two-col{display:grid;grid-template-columns:1fr 1fr;gap:18px}
+@media(max-width:820px){.two-col{grid-template-columns:1fr}}
+.kv{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--line);gap:12px}
+.kv:last-child{border:none}
+.kv .inp{max-width:120px;text-align:right}
+textarea.inp{width:100%;min-height:150px;resize:vertical;font-family:var(--mono);font-size:12px;line-height:1.5}
+.toggle{display:inline-flex;border:1px solid var(--line2);border-radius:8px;overflow:hidden}
+.toggle button{background:var(--panel2);border:none;color:var(--mut);padding:6px 12px;font-size:11.5px;font-weight:700}
+.toggle button.on-base{background:rgba(55,201,138,.16);color:var(--grn)}
+.toggle button.on-fora{background:rgba(242,181,60,.16);color:var(--amber)}
+.note{background:rgba(61,116,255,.07);border:1px solid rgba(61,116,255,.25);border-radius:10px;padding:12px 14px;font-size:12.5px;color:#cdd8ff;line-height:1.5}
+.note b{color:#fff}
+.badge{font-family:var(--mono);font-size:11px;color:var(--mut)}
+.searchlist{max-height:340px;overflow:auto}
+.bars{display:flex;flex-direction:column;gap:9px;margin-top:6px}
+.bar{display:grid;grid-template-columns:130px 1fr 90px;align-items:center;gap:10px;font-size:12px}
+.bar .track{height:9px;background:var(--panel2);border-radius:999px;overflow:hidden}
+.bar .fill{height:100%;border-radius:999px;background:linear-gradient(90deg,var(--red),var(--red2))}
+.bar .val{font-family:var(--mono);text-align:right;color:var(--mut)}
+.hint{font-size:11.5px;color:var(--mut2);margin-top:6px}
+@media print{body *{visibility:hidden}}
+</style>
+</head>
+<body>
+<div class="pixbar"></div>
+<header>
+  <div class="hwrap">
+    <img id="logoImg" class="logo" alt="ILED">
+    <div class="brand"><b>Fechamento de Cachês & Extratos</b><span>ILED Produções · Gestão de Pessoas</span></div>
+    <div class="period-pill"><span class="dot"></span> Período de dados: <b id="periodLbl">—</b></div>
+  </div>
+  <nav id="nav">
+    <button class="tab active" data-v="dash"><span class="num">A1</span>Dashboard</button>
+    <button class="tab" data-v="extrato"><span class="num">A2</span>Extrato do Funcionário</button>
+    <button class="tab" data-v="free"><span class="num">B</span>Freelancers</button>
+    <button class="tab" data-v="engine"><span class="num">C</span>Engine · CSV</button>
+    <button class="tab" data-v="config"><span class="num">R</span>Regras & Cachês</button>
+    <button class="tab" data-v="hist"><span class="num">H</span>Histórico</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============ DASHBOARD ============ -->
+  <section class="view active" id="v-dash">
+    <div class="eyebrow">Aba A · Fechamento</div>
+    <h2 class="sec">Dashboard de Fechamento</h2>
+    <p class="sub">Consolidação de cachês e diárias de alimentação — apenas Equipe Técnica (DF/SP) e Freelancers. Frota e logística ficam de fora.</p>
+    <div class="filters">
+      <div class="field"><label>Data inicial</label><input type="date" class="inp" id="dashFrom"></div>
+      <div class="field"><label>Data final</label><input type="date" class="inp" id="dashTo"></div>
+      <div class="field"><label>Equipe</label>
+        <select class="inp" id="dashTeam">
+          <option value="">Todas</option>
+          <option value="EQUIPE_DF">Equipe Técnica · Brasília</option>
+          <option value="EQUIPE_SP">Equipe Técnica · São Paulo</option>
+          <option value="FREELA_DF">Freelancer · Brasília</option>
+          <option value="FREELA_SP">Freelancer · São Paulo</option>
+        </select>
+      </div>
+      <button class="btn" id="dashReset">Limpar período</button>
+    </div>
+    <div class="cards" id="dashCards"></div>
+    <div class="grid2">
+      <div class="panel pad">
+        <div class="eyebrow">Gasto por técnico</div>
+        <div class="scroll" style="max-height:520px;margin-top:10px">
+          <table class="tbl" id="tblTech"></table>
+        </div>
+      </div>
+      <div>
+        <div class="panel pad" style="margin-bottom:18px">
+          <div class="eyebrow">Custo por evento</div>
+          <div class="bars" id="evBars"></div>
+        </div>
+        <div class="panel pad">
+          <div class="eyebrow">Distribuição</div>
+          <div id="teamSplit"></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ EXTRATO ============ -->
+  <section class="view" id="v-extrato">
+    <div class="eyebrow">Aba A · Extrato individual</div>
+    <h2 class="sec">Extrato do Funcionário</h2>
+    <p class="sub">Onde trabalhou no período, dias de evento vs viagem, cachês, diárias e adicionais.</p>
+    <div class="filters">
+      <div class="field"><label>Funcionário</label>
+        <select class="inp" id="exName" style="min-width:280px"></select>
+      </div>
+      <div class="field"><label>Data inicial</label><input type="date" class="inp" id="exFrom"></div>
+      <div class="field"><label>Data final</label><input type="date" class="inp" id="exTo"></div>
+      <button class="btn primary" id="exGo">Gerar extrato</button>
+    </div>
+    <div id="exResult"></div>
+  </section>
+
+  <!-- ============ FREELANCERS ============ -->
+  <section class="view" id="v-free">
+    <div class="eyebrow">Aba B</div>
+    <h2 class="sec">Gestão de Freelancers</h2>
+    <p class="sub">Nomes vindos da base importada. Defina os parâmetros de cada freelancer — usados no cálculo do extrato e do dashboard.</p>
+    <div class="note" style="margin-bottom:16px">Quando um valor é preenchido aqui, ele <b>substitui</b> a regra padrão para aquele freelancer. Campos vazios usam o padrão: diária base <b>R$ 70</b> (Brasília/SP) e <b>R$ 100</b> fora das bases.</div>
+    <div class="field" style="margin-bottom:14px;max-width:320px"><label>Buscar freelancer</label><input class="inp" id="freeSearch" placeholder="Digite um nome..." style="min-width:280px"></div>
+    <div class="scroll" style="max-height:560px">
+      <table class="tbl" id="tblFree"></table>
+    </div>
+  </section>
+
+  <!-- ============ ENGINE ============ -->
+  <section class="view" id="v-engine">
+    <div class="eyebrow">Aba C</div>
+    <h2 class="sec">Engine · Banco de Dados Intermediário</h2>
+    <p class="sub">Cole ou envie o CSV do mês. O sistema aceita tanto a grade do cronograma (export direto) quanto um CSV normalizado.</p>
+    <div class="two-col">
+      <div class="panel pad">
+        <div class="eyebrow">Importar dados</div>
+        <p class="hint" style="margin:6px 0 12px">Formato 1 — <b>grade</b>: 1ª linha com datas, 1ª coluna com nomes/seções (igual ao seu cronograma).<br>Formato 2 — <b>normalizado</b>: colunas <span class="mono">Data, Nome, Tipo, Local, Status</span>.</p>
+        <input type="file" id="csvFile" accept=".csv" class="inp" style="width:100%;margin-bottom:10px">
+        <textarea class="inp" id="csvPaste" placeholder="...ou cole o conteúdo CSV aqui"></textarea>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="btn primary" id="csvImport">Processar e substituir base</button>
+          <button class="btn ghost" id="csvRestore">Restaurar Julho/2026</button>
+        </div>
+        <div id="csvMsg" class="hint" style="margin-top:10px"></div>
+      </div>
+      <div class="panel pad">
+        <div class="eyebrow">Base atual</div>
+        <div id="engineStats" style="margin-top:8px"></div>
+      </div>
+    </div>
+    <div class="panel pad" style="margin-top:18px">
+      <div class="eyebrow">Classificação de localização por evento</div>
+      <p class="hint" style="margin:6px 0 4px">Define a diária de alimentação de cada evento. <span class="chip grn" style="padding:1px 7px">BASE R$70</span> = evento em Brasília ou São Paulo · <span class="chip amb" style="padding:1px 7px">FORA R$100</span> = fora das bases / viagem.</p>
+      <div class="scroll" style="max-height:420px;margin-top:10px"><table class="tbl" id="tblEvents"></table></div>
+    </div>
+  </section>
+
+  <!-- ============ CONFIG ============ -->
+  <section class="view" id="v-config">
+    <div class="eyebrow">Parâmetros</div>
+    <h2 class="sec">Regras de Negócio & Tabela de Cachês</h2>
+    <p class="sub">Ajuste os valores e a lógica sem tocar no código.</p>
+    <div class="two-col">
+      <div class="panel pad">
+        <div class="eyebrow">Diária de alimentação</div>
+        <div class="kv"><span>Dentro da base (Brasília / São Paulo)</span><input class="inp" id="cfgBase" type="number"></div>
+        <div class="kv"><span>Fora das bases / viagem</span><input class="inp" id="cfgFora" type="number"></div>
+        <div class="eyebrow" style="margin-top:20px">Status que <b style="color:var(--grn)">pagam cachê integral</b></div>
+        <p class="hint" style="margin:4px 0 8px">Desmarque um status para que ele pague só a diária (cachê = R$ 0). Viagem e standby nunca pagam cachê.</p>
+        <div id="statusMap"></div>
+      </div>
+      <div class="panel pad">
+        <div class="eyebrow">Cachê por colaborador (equipe fixa)</div>
+        <p class="hint" style="margin:4px 0 8px">Valor pago por dia efetivo de trabalho. Freelancers são configurados na Aba B.</p>
+        <div class="field" style="max-width:260px;margin-bottom:10px"><input class="inp" id="cacheSearch" placeholder="Buscar colaborador..." style="min-width:240px"></div>
+        <div class="searchlist" id="cacheList"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ HISTÓRICO / NUVEM ============ -->
+  <section class="view" id="v-hist">
+    <div class="eyebrow">Nuvem · Firebase</div>
+    <h2 class="sec">Histórico de Fechamentos</h2>
+    <p class="sub">Salve o fechamento do período atual na nuvem e consulte qualquer mês anterior, de qualquer dispositivo.</p>
+
+    <div id="fbStatus" class="note" style="margin-bottom:16px"></div>
+
+    <div class="two-col">
+      <div class="panel pad">
+        <div class="eyebrow">Salvar fechamento atual</div>
+        <p class="hint" style="margin:6px 0 12px">Grava um retrato do período carregado hoje no Dashboard (todos os colaboradores, cachês, diárias e adicionais). Salvar de novo com a mesma referência <b>atualiza</b> o mês.</p>
+        <div class="field" style="margin-bottom:10px"><label>Referência do mês</label><input class="inp" id="hRef" placeholder="2026-07" style="min-width:160px"></div>
+        <div class="field" style="margin-bottom:12px"><label>Rótulo (opcional)</label><input class="inp" id="hLabel" placeholder="Julho/2026" style="min-width:200px"></div>
+        <button class="btn primary" id="hSave">Salvar na nuvem</button>
+        <div id="hSaveMsg" class="hint" style="margin-top:10px"></div>
+      </div>
+      <div class="panel pad">
+        <div class="eyebrow">Buscar colaborador no histórico</div>
+        <p class="hint" style="margin:6px 0 12px">Veja quanto uma pessoa recebeu em cada mês já salvo na nuvem.</p>
+        <div class="field" style="max-width:280px;margin-bottom:12px"><input class="inp" id="hSearch" placeholder="Digite um nome..." style="min-width:260px"></div>
+        <div id="hSearchResult"></div>
+      </div>
+    </div>
+
+    <div class="panel pad" style="margin-top:18px">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px">
+        <div class="eyebrow">Meses salvos na nuvem</div>
+        <button class="btn ghost" id="hReload">Atualizar lista</button>
+      </div>
+      <div id="hList" style="margin-top:12px"></div>
+    </div>
+
+    <div id="hDetail" style="margin-top:18px"></div>
+  </section>
+</main>
+
+<script id="DATA_BLOB" type="application/json">{"records": [{"date": "2026-07-01", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-06", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-07", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-08", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-09", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-13", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "AMORIEL SOUZA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "ANTÔNIO ARAÚJO", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "ANTÔNIO ARAÚJO", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "ANTÔNIO ARAÚJO", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "ANTÔNIO ARAÚJO", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "ANTÔNIO ARAÚJO", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "ANTÔNIO ARAÚJO", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-01", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-06", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-07", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-08", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-09", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-13", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "ADRIANO ALVES", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "EMMANOEL DO SANTOS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "EMMANOEL DO SANTOS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "EMMANOEL DO SANTOS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "EMMANOEL DO SANTOS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "EMMANOEL DO SANTOS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "EMMANOEL DO SANTOS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-01", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-03", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-06", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-07", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-08", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-09", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-10", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "FELIPE RODRIGUES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "THIGANÁ PEREIRA", "type": "EQUIPE_DF", "event": "FILME 18m²", "prefix": "DF", "status": "MONTAGEM/EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "THIGANÁ PEREIRA", "type": "EQUIPE_DF", "event": "FESTA JUNINA OAB 2026 10m", "prefix": "DF", "status": "MONTAGEM/EVENTO", "kind": "WORK"}, {"date": "2026-07-08", "name": "THIGANÁ PEREIRA", "type": "EQUIPE_DF", "event": "WORKSHOP ONE STATION 8,75 m²", "prefix": "DF", "status": "MONTAGEM/EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "THIGANÁ PEREIRA", "type": "EQUIPE_DF", "event": "ADM VICENTE PIRES 8m²", "prefix": "DF", "status": "MONTAGEM/EVENTO", "kind": "WORK"}, {"date": "2026-07-03", "name": "FERNANDO SALLEM", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "FERNANDO SALLEM", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "FERNANDO SALLEM", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "FERNANDO SALLEM", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "FERNANDO SALLEM", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "FERNANDO SALLEM", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-01", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-06", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-07", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-08", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-09", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-13", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "MAURÍCIO FERREIRA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-06", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-07", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-08", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-09", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-13", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "MARCOS VINÍCIUS", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-06", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-07", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-08", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-09", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-13", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "PEDRO SIMPLÍCIO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-06", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-07", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-08", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-09", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-13", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "TIAGO MONTEIRO", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-06", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-07", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-08", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-09", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-13", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "JOÃO BATISTA", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-03", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-06", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-07", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-08", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-09", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-10", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "LUIS CARLOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "WESLEY DIAS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "WESLEY DIAS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "WESLEY DIAS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "WESLEY DIAS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "WESLEY DIAS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "WESLEY DIAS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-01", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-03", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-06", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-07", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-08", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-09", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-10", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "ROGÉRIO DE JESUS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-03", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-06", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-07", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-08", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-09", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-10", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "DANIEL BISPO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-03", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-06", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-07", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-08", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-09", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-10", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "RHAMON MENDES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "ISMAEL LOPES", "type": "EQUIPE_DF", "event": "FESTA JUNINA OAB 2026 10m", "prefix": "DF", "status": "MONTAGEM/EVENTO", "kind": "WORK"}, {"date": "2026-07-07", "name": "ISMAEL LOPES", "type": "EQUIPE_DF", "event": "MONTAGEM SHOWROOM", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "ISMAEL LOPES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO/DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "ISMAEL LOPES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO/DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "ISMAEL LOPES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO/DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "ISMAEL LOPES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "ISMAEL LOPES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "ISMAEL LOPES", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "RETORNO PARA BRASÍLIA", "kind": "WORK"}, {"date": "2026-07-01", "name": "SIDNEY RAMOS", "type": "EQUIPE_DF", "event": "FILME 18m²", "prefix": "DF", "status": "MONTAGEM/EVENTO", "kind": "WORK"}, {"date": "2026-07-03", "name": "SIDNEY RAMOS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "SIDNEY RAMOS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "SIDNEY RAMOS", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "SIDNEY RAMOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO/DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "SIDNEY RAMOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO/DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "SIDNEY RAMOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO/DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "SIDNEY RAMOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "SIDNEY RAMOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "SIDNEY RAMOS", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "RETORNO PARA BRASÍLIA", "kind": "WORK"}, {"date": "2026-07-01", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-06", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-07", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "ENSAIO", "kind": "WORK"}, {"date": "2026-07-08", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-09", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-11", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-12", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-13", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "WANDERLAN JÚNIOR", "type": "EQUIPE_DF", "event": "COUNTRY BULLS", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-03", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-06", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-07", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-08", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-09", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-10", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "LUCAS SABINO", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "TESTE", "kind": "WORK"}, {"date": "2026-07-03", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-06", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-07", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-08", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-09", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "SEM OPERAÇÃO", "kind": "WORK"}, {"date": "2026-07-10", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "MAYCON SILVA", "type": "EQUIPE_DF", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "DF", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "ROBSON", "type": "EQUIPE_DF", "event": "FILME 18m²", "prefix": "DF", "status": "MONTAGEM/EVENTO", "kind": "WORK"}, {"date": "2026-07-03", "name": "ROBSON", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "ROBSON", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "ROBSON", "type": "EQUIPE_DF", "event": "NA PRAIA 300m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-07", "name": "ROBSON", "type": "EQUIPE_DF", "event": "MONTAGEM SHOWROOM", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "ROBSON", "type": "EQUIPE_DF", "event": "ADM VICENTE PIRES 8m²", "prefix": "DF", "status": "MONTAGEM/EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "WILL", "type": "EQUIPE_DF", "event": "INSTALAÇÃO SANDRO 8m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "WILL", "type": "EQUIPE_DF", "event": "WORKSHOP ONE STATION 8,75 m²", "prefix": "DF", "status": "MONTAGEM/EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "WILL", "type": "EQUIPE_DF", "event": "INSTALAÇÃO FIXA LÉO 6m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-04", "name": "JOÃO PEDRO", "type": "EQUIPE_DF", "event": "INSTALAÇÃO SANDRO 8m²", "prefix": "DF", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-10", "name": "JOÃO PEDRO", "type": "EQUIPE_DF", "event": "INSTALAÇÃO FIXA LÉO 6m²", "prefix": "DF", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-03", "name": "ADENILSON CARLOS", "type": "EQUIPE_SP", "event": "INSTALAÇÃO FIXA SANTOS", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "ADENILSON CARLOS", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-06", "name": "ADENILSON CARLOS", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-09", "name": "ADENILSON CARLOS", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "ADENILSON CARLOS", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-14", "name": "ADENILSON CARLOS", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-15", "name": "ADENILSON CARLOS", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-19", "name": "ADENILSON CARLOS", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-20", "name": "ADENILSON CARLOS", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-05", "name": "MATHEUS CLEMENTE", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-06", "name": "MATHEUS CLEMENTE", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-07", "name": "MATHEUS CLEMENTE", "type": "EQUIPE_SP", "event": "LANÇAMENTO FESTIVAL SP 16m²", "prefix": "SP", "status": "MONTAGEM/DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "MATHEUS CLEMENTE", "type": "EQUIPE_SP", "event": "LANÇAMENTO FESTIVAL SP 16m²", "prefix": "SP", "status": "MONTAGEM/DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "MATHEUS CLEMENTE", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-10", "name": "MATHEUS CLEMENTE", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-14", "name": "MATHEUS CLEMENTE", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-15", "name": "MATHEUS CLEMENTE", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-19", "name": "MATHEUS CLEMENTE", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-20", "name": "MATHEUS CLEMENTE", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-01", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "PESCADORES 2026 215m²", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "VIAGEM", "kind": "VIAGEM"}, {"date": "2026-07-05", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-10", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-20", "name": "LUCAS SOUSA MENEZES", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-01", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "PESCADORES 2026 215m²", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "VIAGEM", "kind": "VIAGEM"}, {"date": "2026-07-05", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-10", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-20", "name": "RUDNEY SILVA", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-01", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "PESCADORES 2026 215m²", "prefix": "SP", "status": "DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "VIAGEM", "kind": "VIAGEM"}, {"date": "2026-07-05", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-10", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-20", "name": "EVANDRO APARECIDO", "type": "EQUIPE_SP", "event": "GINGA 71m²", "prefix": "SP", "status": "EVENTO", "kind": "WORK"}, {"date": "2026-07-07", "name": "GUSTAVO MIRANDA", "type": "EQUIPE_SP", "event": "LANÇAMENTO FESTIVAL SP 16m²", "prefix": "SP", "status": "MONTAGEM/DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "GUSTAVO MIRANDA", "type": "EQUIPE_SP", "event": "LANÇAMENTO FESTIVAL SP 16m²", "prefix": "SP", "status": "MONTAGEM/DESMONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "WEWERTON IAGO BATOR", "type": "FREELA_SP", "event": "PESCADORES 2026 215m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "VIAGEM", "kind": "VIAGEM"}, {"date": "2026-07-05", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-10", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "IURY CHRISTIAN DAMAS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "VIAGEM", "kind": "VIAGEM"}, {"date": "2026-07-05", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-10", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "ALEXSANDRO SANTOS SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "PESCADORES 2026 215m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "VIAGEM", "kind": "VIAGEM"}, {"date": "2026-07-05", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-10", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-11", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-12", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-13", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "BRUNO BARRETO DE OLIVEIRA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-10", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "FERNANDO ALBERTO", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-10", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "JAIR MORAIS DE SOUZA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-10", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "ANDRÉ LUIS FERREIRA CORREIA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-10", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "GABRIEL DIAFERIA MOURA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-10", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "VAGNER ALVES NOGUEIRA", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-05", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-10", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-15", "name": "RAFAEL RIBEIRO SANTOS", "type": "FREELA_SP", "event": "COUNTRY BULLS", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "VIAGEM", "kind": "VIAGEM"}, {"date": "2026-07-05", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-10", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "EMERSON SOARES", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "VIAGEM", "kind": "VIAGEM"}, {"date": "2026-07-05", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-10", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "GEOVANE PEREIRA SANTOS", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": "PESCADORES 2026 215m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "VIAGEM", "kind": "VIAGEM"}, {"date": "2026-07-05", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-06", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-07", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-08", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-09", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-10", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-11", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-12", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": null, "prefix": null, "status": "DIÁRIA", "kind": "STANDBY"}, {"date": "2026-07-13", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-14", "name": "AMAURI ALVES SILVA", "type": "FREELA_SP", "event": "MARANATA 401m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "JOSÉ VINICIUS DA SILVA", "type": "FREELA_SP", "event": "PESCADORES 2026 215m²", "prefix": "SP", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-01", "name": "JOSÉ AUGUSTO", "type": "FREELA_SP", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "MG", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-02", "name": "JOSÉ AUGUSTO", "type": "FREELA_SP", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "MG", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-03", "name": "JOSÉ AUGUSTO", "type": "FREELA_SP", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "MG", "status": "MONTAGEM", "kind": "WORK"}, {"date": "2026-07-04", "name": "JOSÉ AUGUSTO", "type": "FREELA_SP", "event": "EXPOAGRO GUAXUPÉ 2026 462m²", "prefix": "MG", "status": "MONTAGEM", "kind": "WORK"}], "cache": {"ADENILSON CARLOS": 300, "ADRIANO ALVES": 120, "AMORIEL SOUZA": 120, "ANTÔNIO ARAÚJO": 120, "DANIEL BISPO": 90, "EMMANOEL DO SANTOS": 120, "EVANDRO APARECIDO": 90, "FELIPE RODRIGUES": 100, "ISMAEL LOPES": 90, "JOÃO BATISTA": 100, "LUCAS SABINO": 90, "LUCAS SOUSA MENEZES": 90, "LUIS CARLOS": 90, "MARCOS VINÍCIUS": 100, "MATHEUS CLEMENTE": 120, "MAURÍCIO FERREIRA": 90, "PEDRO SIMPLÍCIO": 100, "RHAMON MENDES": 90, "ROBSON": 90, "ROGÉRIO DE JESUS": 90, "RUDNEY SILVA": 120, "SIDNEY RAMOS": 90, "THIGANÁ PEREIRA": 100, "TIAGO MONTEIRO": 100, "WANDERLAN JÚNIOR": 90, "WESLEY DIAS": 90, "WILL": 90}, "logo": "data:image/jpeg;base64,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"}</script>
+<script>
+/* ===================== ILED · Fechamento de Cachês ===================== */
+/* ========================================================================
+   FIREBASE  —  COLE AQUI a config do seu projeto (Console Firebase →
+   engrenagem → Configurações do projeto → Seus apps → SDK → firebaseConfig).
+   Pode reusar o MESMO projeto do BOLÃO-ILED; os dados vão para uma coleção
+   separada ("fechamentos_pessoal"), sem misturar com o bolão.
+   Enquanto estiver em branco, o app funciona normal, só sem salvar na nuvem.
+   ======================================================================== */
+const firebaseConfig = {
+  apiKey: "AIzaSyBtg93RDnAHWEaFoaIU_fs4HqaJeuOhVWw",
+  authDomain: "bolao-iled.firebaseapp.com",
+  projectId: "bolao-iled",
+  storageBucket: "bolao-iled.firebasestorage.app",
+  messagingSenderId: "439012333419",
+  appId: "1:439012333419:web:2da0e4b5e9495a03921e2e",
+  measurementId: "G-MSHJD1WSM4"
+};
+const FB_COLLECTION = "fechamentos_pessoal";
+let FDB = null, FB_OK = false;
+(function initFirebase(){
+  try{
+    if(firebaseConfig.projectId && window.firebase){
+      firebase.initializeApp(firebaseConfig);
+      FDB = firebase.firestore();
+      FB_OK = true;
+    }
+  }catch(e){ console.warn('Firebase init falhou:', e); FB_OK=false; }
+})();
+
+const BLOB = JSON.parse(document.getElementById('DATA_BLOB').textContent);
+const SEED = { records: BLOB.records.slice(), cache: Object.assign({}, BLOB.cache) };
+document.getElementById('logoImg').src = BLOB.logo;
+
+const TEAM_LABEL = {
+  EQUIPE_DF:'Equipe Técnica · Brasília', EQUIPE_SP:'Equipe Técnica · São Paulo',
+  FREELA_DF:'Freelancer · Brasília', FREELA_SP:'Freelancer · São Paulo'
+};
+const isFreela = t => t==='FREELA_DF' || t==='FREELA_SP';
+
+/* ---- mutable state ---- */
+let DB = { records: BLOB.records.slice() };
+const CONFIG = {
+  diaria: { base:70, fora:100 },
+  noPay: new Set(['VIAGEM','DIÁRIA','SEM OPERAÇÃO','RETORNO PARA BRASÍLIA']),
+  cache: Object.assign({}, BLOB.cache),
+  defaultCache: 90,
+  freela: {},            // name -> {diariaBSB,diariaSP,diariaFora,cacheEvento}
+  eventLoc: {}           // EVENTNAME(upper) -> 'BASE'|'FORA'
+};
+const EXTRAS = {};        // name -> {dobras:[{date,valor,desc}], operacoes:[{desc,valor}]}
+
+/* ---- helpers ---- */
+const BRL = v => (v||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
+const NUM = v => { const n = parseFloat(String(v).replace(/\./g,'').replace(',','.')); return isNaN(n)?0:n; };
+const pad = n => String(n).padStart(2,'0');
+const isoBR = iso => { if(!iso) return ''; const [y,m,d]=iso.split('-'); return `${d}/${m}/${y}`; };
+const evKey = ev => ev ? ev.trim().toUpperCase() : null;
+const uniq = a => [...new Set(a)];
+const todayISO = new Date().toISOString().slice(0,10);
+
+function personNames(){ return uniq(DB.records.map(r=>r.name)).sort((a,b)=>a.localeCompare(b,'pt')); }
+function personType(name){ const r = DB.records.find(r=>r.name===name); return r?r.type:''; }
+
+/* default event classification: FORA if name has guaxupé/maranata OR has any viagem day */
+function buildEventLoc(){
+  const evs = uniq(DB.records.filter(r=>r.event).map(r=>evKey(r.event)));
+  evs.forEach(k=>{
+    if(CONFIG.eventLoc[k]) return; // keep user override
+    const hasViagem = DB.records.some(r=>evKey(r.event)===k && r.kind==='VIAGEM');
+    const fora = /GUAXUP|MARANATA|VIAGEM/.test(k) || hasViagem;
+    CONFIG.eventLoc[k] = fora ? 'FORA' : 'BASE';
+  });
+}
+function classForRecord(r){
+  if(r.kind==='VIAGEM') return 'FORA';
+  if(r.event){ return CONFIG.eventLoc[evKey(r.event)] || 'BASE'; }
+  return 'BASE';
+}
+function statusPays(status){ return !CONFIG.noPay.has((status||'').toUpperCase()); }
+
+function diariaFor(r){
+  const cls = classForRecord(r);
+  const fr = CONFIG.freela[r.name];
+  if(fr){
+    if(cls==='FORA') return fr.diariaFora!=null&&fr.diariaFora!=='' ? NUM(fr.diariaFora) : CONFIG.diaria.fora;
+    if(r.prefix==='SP') return fr.diariaSP!=null&&fr.diariaSP!=='' ? NUM(fr.diariaSP) : CONFIG.diaria.base;
+    return fr.diariaBSB!=null&&fr.diariaBSB!=='' ? NUM(fr.diariaBSB) : CONFIG.diaria.base;
+  }
+  return cls==='FORA' ? CONFIG.diaria.fora : CONFIG.diaria.base;
+}
+function cacheFor(r){
+  if(r.kind==='VIAGEM' || r.kind==='STANDBY') return 0;
+  if(!statusPays(r.status)) return 0;
+  const fr = CONFIG.freela[r.name];
+  if(fr && fr.cacheEvento!=null && fr.cacheEvento!=='') return NUM(fr.cacheEvento);
+  return CONFIG.cache[r.name]!=null ? CONFIG.cache[r.name] : CONFIG.defaultCache;
+}
+function dayTag(r){
+  if(r.kind==='VIAGEM') return {t:'Viagem',c:'blu'};
+  if(r.kind==='STANDBY') return {t:'Standby',c:'gry'};
+  if(!statusPays(r.status)) return {t:r.status?titleCase(r.status):'Sem op.',c:'gry'};
+  return {t:titleCase(r.status||'Evento'),c:'grn'};
+}
+function titleCase(s){ return s.toLowerCase().replace(/(^|\s|\/)\p{L}/gu,m=>m.toUpperCase()); }
+function locLabel(r){
+  if(!r.event) return r.kind==='VIAGEM'?'Viagem':'—';
+  return (r.prefix?r.prefix+' · ':'') + r.event;
+}
+
+/* ---- filtering ---- */
+function inRange(iso, from, to){ if(from && iso<from) return false; if(to && iso>to) return false; return true; }
+function recordsFor(name, from, to){
+  return DB.records.filter(r=>r.name===name && inRange(r.date,from,to))
+    .sort((a,b)=>a.date.localeCompare(b.date));
+}
+function extrasFor(name){ if(!EXTRAS[name]) EXTRAS[name]={dobras:[],operacoes:[]}; return EXTRAS[name]; }
+function extrasTotal(name, from, to){
+  const e=extrasFor(name); let dobra=0, oper=0;
+  e.dobras.forEach(d=>{ if(inRange(d.date,from,to)||!d.date) dobra+=NUM(d.valor); });
+  e.operacoes.forEach(o=>{ oper+=NUM(o.valor); });
+  return {dobra,oper,total:dobra+oper};
+}
+
+/* person totals */
+function personTotals(name, from, to){
+  const rs = recordsFor(name,from,to);
+  let cache=0, diaria=0, evDays=0, viagemDays=0, standbyDays=0;
+  rs.forEach(r=>{
+    const c=cacheFor(r), d=diariaFor(r);
+    cache+=c; diaria+=d;
+    if(r.kind==='VIAGEM') viagemDays++;
+    else if(r.kind==='STANDBY'||!statusPays(r.status)) standbyDays++;
+    else evDays++;
+  });
+  const ex = extrasTotal(name,from,to);
+  return {rs,cache,diaria,evDays,viagemDays,standbyDays,extras:ex,
+    total:cache+diaria+ex.total, days:rs.length};
+}
+
+/* ===================== NAV ===================== */
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click',()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    document.getElementById('v-'+t.dataset.v).classList.add('active');
+    if(t.dataset.v==='dash') renderDash();
+    if(t.dataset.v==='engine'){ renderEngine(); renderEvents(); }
+    if(t.dataset.v==='free') renderFree();
+    if(t.dataset.v==='config') renderConfig();
+    if(t.dataset.v==='hist') renderHist();
+  });
+});
+
+/* ===================== DASHBOARD ===================== */
+function dataPeriod(){
+  const ds = DB.records.map(r=>r.date).sort();
+  return { min: ds[0], max: ds[ds.length-1] };
+}
+function renderDash(){
+  const from=document.getElementById('dashFrom').value;
+  const to=document.getElementById('dashTo').value;
+  const team=document.getElementById('dashTeam').value;
+  let rs = DB.records.filter(r=>inRange(r.date,from,to) && (!team||r.type===team));
+
+  // aggregate per person
+  const byPerson={};
+  rs.forEach(r=>{
+    const p=byPerson[r.name]||(byPerson[r.name]={name:r.name,type:r.type,cache:0,diaria:0,days:0});
+    p.cache+=cacheFor(r); p.diaria+=diariaFor(r); p.days++;
+  });
+  // extras (only those inside range & matching team)
+  let extrasSum=0;
+  Object.keys(EXTRAS).forEach(name=>{
+    if(byPerson[name] || (!team)){
+      const e=extrasFor(name);
+      e.dobras.forEach(d=>{ if(inRange(d.date,from,to)||!d.date){ extrasSum+=NUM(d.valor); (byPerson[name]=byPerson[name]||{name,type:personType(name),cache:0,diaria:0,days:0}); } });
+    }
+  });
+
+  let cacheTot=0,diariaTot=0;
+  Object.values(byPerson).forEach(p=>{cacheTot+=p.cache;diariaTot+=p.diaria;});
+  const geral=cacheTot+diariaTot+extrasSum;
+
+  // forecast: full month vs realized until today
+  const per=dataPeriod();
+  let realized=0, foreseen=0;
+  DB.records.forEach(r=>{ if(!team||r.type===team){ const v=cacheFor(r)+diariaFor(r); foreseen+=v; if(r.date<=todayISO) realized+=v; }});
+
+  const cards=[
+    {k:'Cachê total',v:BRL(cacheTot),d:`${Object.keys(byPerson).length} colaboradores`,ic:'💰'},
+    {k:'Alimentação total',v:BRL(diariaTot),d:'Diárias no período',ic:'🍽️'},
+    {k:'Adicionais (dobras/op.)',v:BRL(extrasSum),d:'Lançados no extrato',ic:'➕'},
+    {k:'Gasto total no período',v:BRL(geral),d:'Cachê + alimentação + adicionais',ic:'📊',hero:true},
+    {k:'Previsão fim do mês',v:BRL(foreseen),d:`Realizado até hoje: ${BRL(realized)}`,ic:'📈',hero:true},
+  ];
+  document.getElementById('dashCards').innerHTML = cards.map(c=>`
+    <div class="card ${c.hero?'hero':''}">
+      <div class="k"><span>${c.ic}</span>${c.k}</div>
+      <div class="v">${c.v}</div><div class="d">${c.d}</div>
+    </div>`).join('');
+
+  // per tech table
+  const rows=Object.values(byPerson).sort((a,b)=>(b.cache+b.diaria)-(a.cache+a.diaria));
+  document.getElementById('tblTech').innerHTML =
+    `<thead><tr><th>Colaborador</th><th>Equipe</th><th class="num">Dias</th><th class="num">Cachê</th><th class="num">Alimentação</th><th class="num">Total</th></tr></thead><tbody>`+
+    rows.map(p=>`<tr>
+      <td class="name-cell">${p.name}</td>
+      <td><span class="chip ${teamChip(p.type)}">${shortTeam(p.type)}</span></td>
+      <td class="num">${p.days}</td>
+      <td class="num">${BRL(p.cache)}</td>
+      <td class="num">${BRL(p.diaria)}</td>
+      <td class="num" style="color:#fff;font-weight:700">${BRL(p.cache+p.diaria)}</td></tr>`).join('')+
+    `</tbody><tfoot><tr class="totrow"><td colspan="2">TOTAL</td><td class="num">${rows.reduce((s,p)=>s+p.days,0)}</td><td class="num">${BRL(cacheTot)}</td><td class="num">${BRL(diariaTot)}</td><td class="num">${BRL(cacheTot+diariaTot)}</td></tr></tfoot>`;
+
+  // event bars
+  const byEv={};
+  rs.forEach(r=>{ const k=r.event?(r.prefix?r.prefix+' · ':'')+r.event:'(viagem/standby)'; byEv[k]=(byEv[k]||0)+cacheFor(r)+diariaFor(r); });
+  const evArr=Object.entries(byEv).sort((a,b)=>b[1]-a[1]).slice(0,9);
+  const mx=Math.max(...evArr.map(e=>e[1]),1);
+  document.getElementById('evBars').innerHTML = evArr.map(([k,v])=>`
+    <div class="bar"><div class="muted" title="${k}" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${k}</div>
+    <div class="track"><div class="fill" style="width:${(v/mx*100).toFixed(0)}%"></div></div>
+    <div class="val">${BRL(v)}</div></div>`).join('') || '<div class="empty">Sem dados no período.</div>';
+
+  // team split
+  const byTeam={};
+  rs.forEach(r=>{ byTeam[r.type]=(byTeam[r.type]||0)+cacheFor(r)+diariaFor(r); });
+  document.getElementById('teamSplit').innerHTML = Object.entries(byTeam).sort((a,b)=>b[1]-a[1]).map(([t,v])=>`
+    <div class="stat-row"><span><span class="chip ${teamChip(t)}">${shortTeam(t)}</span> ${TEAM_LABEL[t]||t}</span><b>${BRL(v)}</b></div>`).join('')||'<div class="empty">—</div>';
+}
+function teamChip(t){ return t==='EQUIPE_DF'?'red':t==='EQUIPE_SP'?'blu':t==='FREELA_SP'?'amb':'grn'; }
+function shortTeam(t){ return t==='EQUIPE_DF'?'EQ·DF':t==='EQUIPE_SP'?'EQ·SP':t==='FREELA_SP'?'FL·SP':'FL·DF'; }
+
+document.getElementById('dashFrom').addEventListener('change',renderDash);
+document.getElementById('dashTo').addEventListener('change',renderDash);
+document.getElementById('dashTeam').addEventListener('change',renderDash);
+document.getElementById('dashReset').addEventListener('click',()=>{document.getElementById('dashFrom').value='';document.getElementById('dashTo').value='';renderDash();});
+
+/* ===================== EXTRATO ===================== */
+function fillNameSelect(){
+  const sel=document.getElementById('exName');
+  sel.innerHTML = personNames().map(n=>`<option value="${n.replace(/"/g,'&quot;')}">${n} — ${shortTeam(personType(n))}</option>`).join('');
+}
+let CUR_EXT=null; // {name,from,to}
+function renderExtrato(){
+  const name=document.getElementById('exName').value;
+  const from=document.getElementById('exFrom').value;
+  const to=document.getElementById('exTo').value;
+  if(!name){ document.getElementById('exResult').innerHTML='<div class="empty">Selecione um funcionário.</div>'; return; }
+  CUR_EXT={name,from,to};
+  const T=personTotals(name,from,to);
+  const type=personType(name);
+  const box=document.getElementById('exResult');
+  if(!T.rs.length){ box.innerHTML=`<div class="panel pad"><div class="empty">Nenhuma escala encontrada para <b>${name}</b> no período.</div></div>`; return; }
+
+  const rowsHtml=T.rs.map(r=>{
+    const tag=dayTag(r), c=cacheFor(r), d=diariaFor(r), cls=classForRecord(r);
+    return `<tr>
+      <td class="mono">${isoBR(r.date)}</td>
+      <td>${locLabel(r)}</td>
+      <td><span class="chip ${tag.c}">${tag.t}</span></td>
+      <td><span class="chip ${cls==='FORA'?'amb':'grn'}" style="padding:1px 8px">${cls==='FORA'?'FORA':'BASE'}</span></td>
+      <td class="num">${c?BRL(c):'—'}</td>
+      <td class="num">${BRL(d)}</td>
+      <td class="num" style="color:#fff">${BRL(c+d)}</td></tr>`;
+  }).join('');
+
+  box.innerHTML=`
+   <div class="grid2">
+    <div class="panel pad">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
+        <div><div style="font-size:17px;font-weight:700">${name}</div>
+        <div class="tiny">${TEAM_LABEL[type]} · ${T.days} dia(s) escalado(s)${from||to?` · ${isoBR(from)||'início'} a ${isoBR(to)||'fim'}`:''}</div></div>
+        <span class="chip ${teamChip(type)}">${shortTeam(type)}</span>
+      </div>
+      <div class="scroll" style="max-height:400px">
+      <table class="tbl">
+        <thead><tr><th>Data</th><th>Evento / Local</th><th>Registro</th><th>Diária</th><th class="num">Cachê</th><th class="num">Aliment.</th><th class="num">Subtotal</th></tr></thead>
+        <tbody>${rowsHtml}</tbody>
+        <tfoot><tr class="totrow"><td colspan="4">SUBTOTAL ESCALA</td><td class="num">${BRL(T.cache)}</td><td class="num">${BRL(T.diaria)}</td><td class="num">${BRL(T.cache+T.diaria)}</td></tr></tfoot>
+      </table></div>
+      <div class="legend">
+        <span><span class="sw" style="background:var(--grn)"></span>Dia efetivo · paga cachê</span>
+        <span><span class="sw" style="background:var(--blue)"></span>Viagem · só diária</span>
+        <span><span class="sw" style="background:var(--mut)"></span>Standby / sem operação</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel pad" style="margin-bottom:16px">
+        <div class="eyebrow">Resumo</div>
+        <div class="stat-row"><span>Dias de evento (trabalho)</span><b>${T.evDays}</b></div>
+        <div class="stat-row"><span>Dias de viagem</span><b>${T.viagemDays}</b></div>
+        <div class="stat-row"><span>Dias standby / sem operação</span><b>${T.standbyDays}</b></div>
+        <div class="stat-row"><span>Total de cachês</span><b>${BRL(T.cache)}</b></div>
+        <div class="stat-row"><span>Total de diárias (alimentação)</span><b>${BRL(T.diaria)}</b></div>
+        <div class="stat-row"><span>Dobras</span><b id="sumDobra">${BRL(T.extras.dobra)}</b></div>
+        <div class="stat-row"><span>Valores de operação</span><b id="sumOper">${BRL(T.extras.oper)}</b></div>
+        <div class="stat-row" style="border-top:2px solid var(--line2);margin-top:4px;padding-top:12px">
+          <span style="font-weight:700;font-size:15px">TOTAL A RECEBER</span>
+          <b id="grandTotal" style="font-size:17px;color:var(--red2)">${BRL(T.total)}</b></div>
+      </div>
+
+      <div class="panel pad">
+        <div class="addbox" style="margin-top:0">
+          <h4>➕ Dobra de diária <span class="tiny" style="font-weight:400">(pagamento extra em um dia específico)</span></h4>
+          <div class="addline">
+            <input type="date" class="inp" id="dbDate" style="min-width:150px">
+            <input class="inp" id="dbVal" placeholder="Valor (ex: 90)" style="max-width:130px">
+            <input class="inp" id="dbDesc" placeholder="Descrição (ex: virada de noite)" style="flex:1;min-width:150px">
+            <button class="btn primary sm" id="dbAdd">Adicionar</button>
+          </div>
+          <div id="dbList"></div>
+        </div>
+
+        <div class="addbox">
+          <h4>🔧 Valores sobre operações <span class="tiny" style="font-weight:400">(ajustes, ajudas, extras da operação)</span></h4>
+          <div class="addline">
+            <input class="inp" id="opDesc" placeholder="Descrição (ex: ajuda de transporte)" style="flex:1;min-width:170px">
+            <input class="inp" id="opVal" placeholder="Valor" style="max-width:130px">
+            <button class="btn primary sm" id="opAdd">Adicionar</button>
+          </div>
+          <div id="opList"></div>
+        </div>
+
+        <button class="btn primary" id="pdfBtn" style="width:100%;margin-top:16px;padding:12px">📄 Gerar PDF do extrato</button>
+      </div>
+    </div>
+   </div>`;
+
+  wireExtras(name,from,to);
+}
+function wireExtras(name,from,to){
+  const e=extrasFor(name);
+  const renderLists=()=>{
+    document.getElementById('dbList').innerHTML = e.dobras.length? e.dobras.map((d,i)=>`
+      <div class="extra-item"><span class="chip blu" style="padding:1px 8px">${d.date?isoBR(d.date):'s/ data'}</span>
+      <b class="mono">${BRL(NUM(d.valor))}</b><span class="muted">${d.desc||''}</span>
+      <span class="x" data-t="d" data-i="${i}">✕</span></div>`).join('') : '<div class="tiny" style="margin-top:8px">Nenhuma dobra lançada.</div>';
+    document.getElementById('opList').innerHTML = e.operacoes.length? e.operacoes.map((o,i)=>`
+      <div class="extra-item"><b class="mono">${BRL(NUM(o.valor))}</b><span class="muted">${o.desc||''}</span>
+      <span class="x" data-t="o" data-i="${i}">✕</span></div>`).join('') : '<div class="tiny" style="margin-top:8px">Nenhum valor de operação.</div>';
+    document.querySelectorAll('#dbList .x, #opList .x').forEach(x=>x.addEventListener('click',()=>{
+      const arr = x.dataset.t==='d'?e.dobras:e.operacoes; arr.splice(+x.dataset.i,1); refresh();
+    }));
+  };
+  const refresh=()=>{ renderLists(); const T=personTotals(name,from,to);
+    document.getElementById('sumDobra').textContent=BRL(T.extras.dobra);
+    document.getElementById('sumOper').textContent=BRL(T.extras.oper);
+    document.getElementById('grandTotal').textContent=BRL(T.total);
+  };
+  document.getElementById('dbAdd').addEventListener('click',()=>{
+    const val=document.getElementById('dbVal').value;
+    if(!val){return;}
+    e.dobras.push({date:document.getElementById('dbDate').value,valor:val,desc:document.getElementById('dbDesc').value});
+    document.getElementById('dbVal').value='';document.getElementById('dbDesc').value='';document.getElementById('dbDate').value='';
+    refresh();
+  });
+  document.getElementById('opAdd').addEventListener('click',()=>{
+    const val=document.getElementById('opVal').value;
+    if(!val){return;}
+    e.operacoes.push({desc:document.getElementById('opDesc').value,valor:val});
+    document.getElementById('opVal').value='';document.getElementById('opDesc').value='';
+    refresh();
+  });
+  document.getElementById('pdfBtn').addEventListener('click',()=>generatePDF(name,from,to));
+  renderLists();
+}
+document.getElementById('exGo').addEventListener('click',renderExtrato);
+document.getElementById('exName').addEventListener('change',renderExtrato);
+
+/* ===================== PDF ===================== */
+function generatePDF(name,from,to){
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({unit:'pt',format:'a4'});
+  const W = doc.internal.pageSize.getWidth();
+  const T = personTotals(name,from,to);
+  const type=personType(name);
+  // header band
+  doc.setFillColor(8,8,10); doc.rect(0,0,W,86,'F');
+  doc.setFillColor(225,6,0); doc.rect(0,86,W,3,'F');
+  try{ doc.addImage(BLOB.logo,'JPEG',40,20,52,42); }catch(e){}
+  doc.setTextColor(255,255,255); doc.setFont('helvetica','bold'); doc.setFontSize(15);
+  doc.text('Extrato de Cachê & Diárias',108,40);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(180,184,192);
+  doc.text('ILED Produções · Gestão de Pessoas',108,56);
+  const perTxt = (from||to)?`Período: ${isoBR(from)||'início'} a ${isoBR(to)||'fim'}`:'Período: mês completo (base importada)';
+  doc.text(perTxt, W-40, 40, {align:'right'});
+  doc.text('Emitido em '+isoBR(todayISO), W-40, 56, {align:'right'});
+
+  // employee bar
+  doc.setTextColor(20,20,20); doc.setFont('helvetica','bold'); doc.setFontSize(13);
+  doc.text(name,40,116);
+  doc.setFont('helvetica','normal'); doc.setFontSize(9.5); doc.setTextColor(90,90,90);
+  doc.text(`${TEAM_LABEL[type]}  ·  ${T.days} dia(s) escalado(s)  ·  ${T.evDays} evento / ${T.viagemDays} viagem / ${T.standbyDays} standby`,40,132);
+
+  // schedule table
+  const body = T.rs.map(r=>{
+    const c=cacheFor(r), d=diariaFor(r), tag=dayTag(r), cls=classForRecord(r);
+    return [isoBR(r.date), locLabel(r), tag.t, cls, c?BRL(c):'—', BRL(d), BRL(c+d)];
+  });
+  doc.autoTable({
+    startY:146, head:[['Data','Evento / Local','Registro','Diária','Cachê','Aliment.','Subtotal']],
+    body, theme:'grid', styles:{fontSize:8.2,cellPadding:4,textColor:[40,40,40],lineColor:[228,228,232]},
+    headStyles:{fillColor:[20,20,26],textColor:[255,255,255],fontSize:8,fontStyle:'bold'},
+    columnStyles:{4:{halign:'right'},5:{halign:'right'},6:{halign:'right',fontStyle:'bold'}},
+    alternateRowStyles:{fillColor:[247,247,249]},
+    foot:[['','','','','Subtotal',BRL(T.diaria),BRL(T.cache+T.diaria)]],
+    footStyles:{fillColor:[240,240,242],textColor:[20,20,20],fontStyle:'bold',halign:'right'},
+    didParseCell:function(h){ if(h.section==='foot'&&h.column.index===4){h.cell.styles.halign='right';} }
+  });
+  let y=doc.lastAutoTable.finalY+18;
+
+  const e=extrasFor(name);
+  if(e.dobras.length){
+    doc.autoTable({ startY:y, head:[['Dobras — data','Descrição','Valor']],
+      body:e.dobras.map(d=>[d.date?isoBR(d.date):'—', d.desc||'', BRL(NUM(d.valor))]),
+      theme:'grid', styles:{fontSize:8.4,cellPadding:4}, headStyles:{fillColor:[61,116,255],textColor:[255,255,255],fontSize:8},
+      columnStyles:{2:{halign:'right',fontStyle:'bold'}} });
+    y=doc.lastAutoTable.finalY+14;
+  }
+  if(e.operacoes.length){
+    doc.autoTable({ startY:y, head:[['Valores sobre operações','Valor']],
+      body:e.operacoes.map(o=>[o.desc||'', BRL(NUM(o.valor))]),
+      theme:'grid', styles:{fontSize:8.4,cellPadding:4}, headStyles:{fillColor:[242,181,60],textColor:[30,30,30],fontSize:8},
+      columnStyles:{1:{halign:'right',fontStyle:'bold'}} });
+    y=doc.lastAutoTable.finalY+14;
+  }
+
+  // totals box
+  if(y>720){ doc.addPage(); y=60; }
+  const bx=W-260, bw=220;
+  const lines=[
+    ['Cachês',BRL(T.cache)],['Alimentação',BRL(T.diaria)],
+    ['Dobras',BRL(T.extras.dobra)],['Operações',BRL(T.extras.oper)]
+  ];
+  doc.setDrawColor(225,6,0); doc.setLineWidth(1);
+  doc.roundedRect(bx,y,bw,20+lines.length*16+34,6,6);
+  doc.setFontSize(9); let yy=y+20;
+  lines.forEach(l=>{ doc.setTextColor(90,90,90); doc.setFont('helvetica','normal'); doc.text(l[0],bx+14,yy);
+    doc.setTextColor(30,30,30); doc.setFont('helvetica','bold'); doc.text(l[1],bx+bw-14,yy,{align:'right'}); yy+=16; });
+  doc.setDrawColor(225,6,0); doc.line(bx+10,yy-4,bx+bw-10,yy-4);
+  yy+=14; doc.setFontSize(12); doc.setTextColor(225,6,0); doc.setFont('helvetica','bold');
+  doc.text('TOTAL',bx+14,yy); doc.text(BRL(T.total),bx+bw-14,yy,{align:'right'});
+
+  // footer
+  doc.setFontSize(7.5); doc.setTextColor(150,150,150); doc.setFont('helvetica','normal');
+  doc.text('Documento gerado automaticamente pelo Sistema de Fechamento de Cachês · ILED Produções',40,doc.internal.pageSize.getHeight()-24);
+
+  const safe=name.replace(/[^\wÀ-ÿ ]/g,'').trim().replace(/\s+/g,'_');
+  doc.save(`Extrato_${safe}_${(from||'').replace(/-/g,'')||'mes'}.pdf`);
+}
+
+/* ===================== FREELANCERS (Aba B) ===================== */
+function renderFree(){
+  const q=(document.getElementById('freeSearch').value||'').toUpperCase();
+  const names=personNames().filter(n=>isFreela(personType(n)) && n.toUpperCase().includes(q));
+  const t=document.getElementById('tblFree');
+  t.innerHTML=`<thead><tr><th>Freelancer</th><th>Base</th><th class="num">Diária Brasília</th><th class="num">Diária São Paulo</th><th class="num">Diária Fora</th><th class="num">Cachê / evento</th></tr></thead><tbody>`+
+    names.map(n=>{
+      const f=CONFIG.freela[n]||{};
+      return `<tr><td class="name-cell">${n}</td><td><span class="chip ${teamChip(personType(n))}">${shortTeam(personType(n))}</span></td>
+      <td class="num"><input class="inp fl" data-n="${n}" data-k="diariaBSB" value="${f.diariaBSB??''}" placeholder="70" style="min-width:90px;text-align:right"></td>
+      <td class="num"><input class="inp fl" data-n="${n}" data-k="diariaSP" value="${f.diariaSP??''}" placeholder="70" style="min-width:90px;text-align:right"></td>
+      <td class="num"><input class="inp fl" data-n="${n}" data-k="diariaFora" value="${f.diariaFora??''}" placeholder="100" style="min-width:90px;text-align:right"></td>
+      <td class="num"><input class="inp fl" data-n="${n}" data-k="cacheEvento" value="${f.cacheEvento??''}" placeholder="${CONFIG.defaultCache}" style="min-width:90px;text-align:right"></td></tr>`;
+    }).join('') + `</tbody>`;
+  if(!names.length) t.innerHTML+=`<tbody><tr><td colspan="6"><div class="empty">Nenhum freelancer na base atual${q?' com esse nome':''}.</div></td></tr></tbody>`;
+  t.querySelectorAll('input.fl').forEach(inp=>inp.addEventListener('change',()=>{
+    const n=inp.dataset.n,k=inp.dataset.k; CONFIG.freela[n]=CONFIG.freela[n]||{}; CONFIG.freela[n][k]=inp.value;
+  }));
+}
+document.getElementById('freeSearch').addEventListener('input',renderFree);
+
+/* ===================== ENGINE (Aba C) ===================== */
+function renderEngine(){
+  const per=dataPeriod();
+  const nP=personNames().length, nR=DB.records.length;
+  const byT={}; DB.records.forEach(r=>byT[r.type]=(byT[r.type]||0)+1);
+  document.getElementById('engineStats').innerHTML=`
+    <div class="stat-row"><span>Registros (dia×pessoa)</span><b>${nR}</b></div>
+    <div class="stat-row"><span>Colaboradores com escala</span><b>${nP}</b></div>
+    <div class="stat-row"><span>Período coberto</span><b>${isoBR(per.min)} → ${isoBR(per.max)}</b></div>
+    ${Object.entries(byT).map(([t,c])=>`<div class="stat-row"><span><span class="chip ${teamChip(t)}">${shortTeam(t)}</span> ${TEAM_LABEL[t]}</span><b>${c}</b></div>`).join('')}`;
+}
+function renderEvents(){
+  buildEventLoc();
+  const evs=uniq(DB.records.filter(r=>r.event).map(r=>evKey(r.event))).sort();
+  const t=document.getElementById('tblEvents');
+  t.innerHTML=`<thead><tr><th>Evento</th><th class="num">Dias-pessoa</th><th>Diária</th></tr></thead><tbody>`+
+   evs.map(k=>{
+     const cnt=DB.records.filter(r=>evKey(r.event)===k).length;
+     const cls=CONFIG.eventLoc[k]||'BASE';
+     return `<tr><td class="name-cell">${k}</td><td class="num">${cnt}</td>
+     <td><div class="toggle"><button class="${cls==='BASE'?'on-base':''}" data-k="${k}" data-v="BASE">BASE · ${BRL(CONFIG.diaria.base)}</button>
+     <button class="${cls==='FORA'?'on-fora':''}" data-k="${k}" data-v="FORA">FORA · ${BRL(CONFIG.diaria.fora)}</button></div></td></tr>`;
+   }).join('')+`</tbody>`;
+  t.querySelectorAll('.toggle button').forEach(b=>b.addEventListener('click',()=>{
+    CONFIG.eventLoc[b.dataset.k]=b.dataset.v; renderEvents();
+  }));
+}
+document.getElementById('csvRestore').addEventListener('click',()=>{
+  DB.records=SEED.records.slice(); CONFIG.eventLoc={}; buildEventLoc();
+  afterImport('Base de Julho/2026 restaurada.'); 
+});
+document.getElementById('csvFile').addEventListener('change',ev=>{
+  const f=ev.target.files[0]; if(!f) return; const rd=new FileReader();
+  rd.onload=()=>{ document.getElementById('csvPaste').value=rd.result; };
+  rd.readAsText(f,'utf-8');
+});
+document.getElementById('csvImport').addEventListener('click',()=>{
+  const txt=document.getElementById('csvPaste').value.trim();
+  if(!txt){ msg('Cole ou envie um CSV primeiro.',true); return; }
+  try{
+    const recs=parseCSV(txt);
+    if(!recs.length){ msg('Não encontrei registros válidos. Verifique o formato.',true); return; }
+    DB.records=recs; CONFIG.eventLoc={}; buildEventLoc();
+    afterImport(`Importados ${recs.length} registros de ${uniq(recs.map(r=>r.name)).length} colaboradores.`);
+  }catch(e){ msg('Erro ao processar: '+e.message,true); }
+});
+function afterImport(m){ msg(m,false); renderEngine(); renderEvents(); fillNameSelect(); setDefaultDates(); }
+function msg(t,err){ const el=document.getElementById('csvMsg'); el.innerHTML=t; el.style.color=err?'var(--red2)':'var(--grn)'; }
+
+/* CSV parsing: supports normalized (Data,Nome,Tipo,Local,Status) and wide grid */
+function splitCSV(text){
+  const delim = (text.split('\n')[0].split(';').length > text.split('\n')[0].split(',').length) ? ';' : ',';
+  const rows=[]; let row=[], cur='', q=false;
+  for(let i=0;i<text.length;i++){ const ch=text[i];
+    if(q){ if(ch==='"'){ if(text[i+1]==='"'){cur+='"';i++;} else q=false; } else cur+=ch; }
+    else { if(ch==='"') q=true; else if(ch===delim){ row.push(cur);cur=''; }
+      else if(ch==='\n'){ row.push(cur);rows.push(row);row=[];cur=''; }
+      else if(ch==='\r'){} else cur+=ch; } }
+  if(cur.length||row.length){ row.push(cur); rows.push(row); }
+  return rows.filter(r=>r.some(c=>String(c).trim()!==''));
+}
+const PT_MONTH={janeiro:1,fevereiro:2,marco:3,'março':3,abril:4,maio:5,junho:6,julho:7,agosto:8,setembro:9,outubro:10,novembro:11,dezembro:12};
+function toISO(cell){
+  if(!cell) return null; const s=String(cell).trim();
+  let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/); if(m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m=s.match(/^(\d{1,2})[\/\-.](\d{1,2})[\/\-.](\d{2,4})/); if(m){ let y=m[3];if(y.length===2)y='20'+y; return `${y}-${pad(+m[2])}-${pad(+m[1])}`; }
+  m=s.toLowerCase().match(/(\d{1,2})\s*[-–]\s*([a-zç]+)/); if(m&&PT_MONTH[m[2]]) return `2026-${pad(PT_MONTH[m[2]])}-${pad(+m[1])}`;
+  const d=new Date(s); if(!isNaN(d)) return d.toISOString().slice(0,10);
+  return null;
+}
+function classifyType(sectionUpper){
+  const s=sectionUpper||'';
+  if(s.includes('FREELANCER')&&s.includes('SÃO')) return 'FREELA_SP';
+  if(s.includes('FREE LANCE')||(s.includes('FREELA')&&(s.includes('BSB')||s.includes('BRAS')))) return 'FREELA_DF';
+  if((s.includes('EQUIPE')||s.includes('EQUPE'))&&(s.includes('SÃO')||s.includes('SAO')||s.includes('PAULO')||s.includes('PAILO'))) return 'EQUIPE_SP';
+  if((s.includes('EQUIPE')||s.includes('EQUPE'))&&s.includes('BRAS')) return 'EQUIPE_DF';
+  return null;
+}
+const STOP_SEC=/FROTA|FRETE|EVENTOS|MOTORISTA/;
+function parseDayCell(text){
+  const t=String(text).trim(); if(!t) return null;
+  const up=t.toUpperCase();
+  if(up==='VIAGEM') return {kind:'VIAGEM',event:null,status:'VIAGEM',prefix:null};
+  if(up==='DIÁRIA'||up==='DIARIA') return {kind:'STANDBY',event:null,status:'DIÁRIA',prefix:null};
+  let prefix=null, body=t;
+  const m=t.match(/^\s*(SP|DF|MG|GO|BA|MS|RS|CE)\s*-\s*(.*)$/i);
+  if(m){ prefix=m[1].toUpperCase(); body=m[2].trim(); }
+  let status=null; const parens=[...body.matchAll(/\(([^()]*)\)/g)];
+  if(parens.length) status=parens[parens.length-1][1].trim();
+  else { const mm=body.match(/\(([^()]*)$/); if(mm) status=mm[1].trim(); }
+  const ev=body.replace(/\([^()]*\)?/g,'').replace(/\s+/g,' ').trim().replace(/^-|-$/g,'').trim();
+  return {kind:'WORK',event:ev,status:(status||'EVENTO').toUpperCase(),prefix};
+}
+function parseCSV(text){
+  const rows=splitCSV(text);
+  const header=rows[0].map(c=>String(c).trim().toUpperCase());
+  // ---- normalized? ----
+  const hasCols = ['DATA','NOME'].every(k=>header.some(h=>h.includes(k)));
+  if(hasCols){
+    const ci=k=>header.findIndex(h=>h.includes(k));
+    const iData=ci('DATA'),iNome=ci('NOME'),iTipo=header.findIndex(h=>h.includes('TIPO')),
+      iLocal=header.findIndex(h=>h.includes('LOCAL')),iStatus=header.findIndex(h=>h.includes('STATUS'));
+    const out=[];
+    for(let r=1;r<rows.length;r++){
+      const iso=toISO(rows[r][iData]); const name=(rows[r][iNome]||'').trim();
+      if(!iso||!name) continue;
+      const tRaw=(iTipo>=0?rows[r][iTipo]:'').toUpperCase();
+      const type=classifyType(tRaw)|| (tRaw.includes('SP')?'EQUIPE_SP':'EQUIPE_DF');
+      const st=(iStatus>=0?rows[r][iStatus]:'EVENTO').toUpperCase().trim();
+      const loc=(iLocal>=0?rows[r][iLocal]:'').trim();
+      const kind = st.includes('VIAGEM')?'VIAGEM':(st.includes('DIÁR')||st.includes('DIAR')||st.includes('STANDBY')?'STANDBY':'WORK');
+      const prefix = /SÃO|SAO|PAULO|\bSP\b/.test(loc.toUpperCase())?'SP':(/BRAS|\bDF\b/.test(loc.toUpperCase())?'DF':null);
+      out.push({date:iso,name,type,event:loc||null,prefix,status:st,kind});
+    }
+    return out;
+  }
+  // ---- wide grid ----
+  const dateCols={};
+  for(let c=1;c<rows[0].length;c++){ const iso=toISO(rows[0][c]); if(iso) dateCols[c]=iso; }
+  let curType=null, block=null; const blocks=[];
+  for(let r=1;r<rows.length;r++){
+    const a=String(rows[r][0]||'').trim(); const up=a.toUpperCase();
+    const ct=classifyType(up);
+    if(ct){ curType=ct; block=null; continue; }
+    if(STOP_SEC.test(up)){ curType=null; block=null; continue; }
+    if(!curType) continue;
+    if(a){ block={name:a.replace(/\s+/g,' '),type:curType,rows:[r]}; blocks.push(block); }
+    else if(block){ block.rows.push(r); }
+  }
+  const out=[];
+  blocks.forEach(b=>{
+    for(const c in dateCols){
+      const texts=b.rows.map(rr=>String(rows[rr][c]||'').trim()).filter(Boolean);
+      if(!texts.length) continue;
+      const ps=texts.map(parseDayCell);
+      const vi=ps.find(p=>p&&p.kind==='VIAGEM'), st=ps.find(p=>p&&p.kind==='STANDBY'), wk=ps.find(p=>p&&p.kind==='WORK');
+      if(wk) out.push({date:dateCols[c],name:b.name,type:b.type,event:wk.event,prefix:wk.prefix,status:vi?'VIAGEM':wk.status,kind:vi?'VIAGEM':(st?'STANDBY':'WORK')});
+      else if(vi) out.push({date:dateCols[c],name:b.name,type:b.type,event:null,prefix:null,status:'VIAGEM',kind:'VIAGEM'});
+      else if(st) out.push({date:dateCols[c],name:b.name,type:b.type,event:null,prefix:null,status:'DIÁRIA',kind:'STANDBY'});
+    }
+  });
+  return out;
+}
+
+/* ===================== CONFIG ===================== */
+function renderConfig(){
+  document.getElementById('cfgBase').value=CONFIG.diaria.base;
+  document.getElementById('cfgFora').value=CONFIG.diaria.fora;
+  const statuses=uniq(DB.records.map(r=>(r.status||'').toUpperCase())).filter(Boolean).sort();
+  document.getElementById('statusMap').innerHTML=statuses.map(s=>{
+    const pays=statusPays(s);
+    return `<label class="kv" style="cursor:pointer"><span>${titleCase(s)}</span>
+      <input type="checkbox" class="stchk" data-s="${s}" ${pays?'checked':''} style="width:18px;height:18px;accent-color:var(--red)"></label>`;
+  }).join('');
+  document.querySelectorAll('.stchk').forEach(c=>c.addEventListener('change',()=>{
+    const s=c.dataset.s; if(c.checked) CONFIG.noPay.delete(s); else CONFIG.noPay.add(s);
+  }));
+  renderCacheList();
+}
+function renderCacheList(){
+  const q=(document.getElementById('cacheSearch').value||'').toUpperCase();
+  const names=personNames().filter(n=>!isFreela(personType(n)) && n.toUpperCase().includes(q));
+  document.getElementById('cacheList').innerHTML=names.map(n=>`
+    <div class="kv"><span>${n} <span class="chip ${teamChip(personType(n))}" style="padding:0 7px;margin-left:4px">${shortTeam(personType(n))}</span></span>
+    <input class="inp cc" data-n="${n}" type="number" value="${CONFIG.cache[n]??CONFIG.defaultCache}"></div>`).join('')
+    || '<div class="empty">Nenhum colaborador.</div>';
+  document.querySelectorAll('input.cc').forEach(i=>i.addEventListener('change',()=>{ CONFIG.cache[i.dataset.n]=NUM(i.value)||0; }));
+}
+document.getElementById('cfgBase').addEventListener('change',e=>{CONFIG.diaria.base=NUM(e.target.value);});
+document.getElementById('cfgFora').addEventListener('change',e=>{CONFIG.diaria.fora=NUM(e.target.value);});
+document.getElementById('cacheSearch').addEventListener('input',renderCacheList);
+
+/* ===================== HISTÓRICO / NUVEM ===================== */
+let HIST_CACHE = [];
+let histWired = false;
+
+function teamChipByLabel(l){ return l==='EQ·DF'?'red':l==='EQ·SP'?'blu':l==='FL·SP'?'amb':'grn'; }
+
+function buildSnapshot(){
+  const from = document.getElementById('dashFrom').value || null;
+  const to   = document.getElementById('dashTo').value || null;
+  const pessoas = []; let tc=0, td=0, te=0;
+  personNames().forEach(n=>{
+    const T = personTotals(n, from, to);
+    if(T.days===0 && (!T.extras || T.extras.total===0)) return;
+    pessoas.push({ nome:n, tipo:personType(n), equipe:shortTeam(personType(n)),
+      dias:T.days, evDays:T.evDays, viagemDays:T.viagemDays, standbyDays:T.standbyDays,
+      cache:T.cache, diaria:T.diaria, extras:T.extras.total, total:T.total });
+    tc+=T.cache; td+=T.diaria; te+=T.extras.total;
+  });
+  const per = dataPeriod();
+  return { periodo:{ ini: from||per.min, fim: to||per.max },
+    totais:{ cache:tc, diaria:td, extras:te, total:tc+td+te },
+    pessoas, count:pessoas.length };
+}
+
+async function saveFechamento(){
+  const msg = document.getElementById('hSaveMsg');
+  if(!FB_OK){ msg.style.color='var(--red2)'; msg.textContent='Firebase não configurado — cole a config no topo do arquivo.'; return; }
+  let ref = (document.getElementById('hRef').value||'').trim();
+  if(!ref){ msg.style.color='var(--red2)'; msg.textContent='Informe a referência do mês (ex: 2026-07).'; return; }
+  ref = ref.replace(/[\/\\.#$\[\]]/g,'-');
+  const label = (document.getElementById('hLabel').value||'').trim() || ref;
+  const snap = buildSnapshot();
+  if(!snap.count){ msg.style.color='var(--red2)'; msg.textContent='Não há colaboradores no período atual para salvar.'; return; }
+  const payload = { ref, label, periodo:snap.periodo, geradoEm:new Date().toISOString(),
+    totais:snap.totais, count:snap.count, pessoas:snap.pessoas };
+  msg.style.color='var(--mut)'; msg.textContent='Salvando...';
+  try{
+    await FDB.collection(FB_COLLECTION).doc(ref).set(payload);
+    msg.style.color='var(--grn)';
+    msg.textContent='Salvo! '+snap.count+' colaboradores · total '+BRL(snap.totais.total);
+    loadHistList();
+  }catch(e){ msg.style.color='var(--red2)'; msg.textContent='Erro ao salvar: '+e.message; }
+}
+
+async function loadHistList(){
+  const box = document.getElementById('hList');
+  if(!FB_OK){ box.innerHTML='<div class="empty">Configure o Firebase para ver o histórico.</div>'; return; }
+  box.innerHTML='<div class="hint">Carregando...</div>';
+  try{
+    const qs = await FDB.collection(FB_COLLECTION).get();
+    HIST_CACHE = qs.docs.map(d=>d.data()).sort((a,b)=>(b.ref||'').localeCompare(a.ref||''));
+    renderHistList(); searchFuncHist();
+  }catch(e){ box.innerHTML='<div class="empty">Erro ao carregar: '+e.message+'</div>'; }
+}
+
+function renderHistList(){
+  const box = document.getElementById('hList');
+  if(!HIST_CACHE.length){ box.innerHTML='<div class="empty">Nenhum fechamento salvo ainda. Salve o mês atual acima.</div>'; return; }
+  box.innerHTML = '<div class="histgrid">'+HIST_CACHE.map(h=>`
+    <div class="histcard" data-ref="${h.ref}">
+      <div class="hc-top"><b>${h.label||h.ref}</b><span class="chip red">${h.count||0} pes.</span></div>
+      <div class="hc-per">${isoBR(h.periodo&&h.periodo.ini)} — ${isoBR(h.periodo&&h.periodo.fim)}</div>
+      <div class="hc-tot">${BRL(h.totais&&h.totais.total)}</div>
+      <div class="hc-sub">Cachê ${BRL(h.totais&&h.totais.cache)} · Aliment. ${BRL(h.totais&&h.totais.diaria)}</div>
+    </div>`).join('')+'</div>';
+  box.querySelectorAll('.histcard').forEach(c=>c.addEventListener('click',()=>openMes(c.dataset.ref)));
+}
+
+function openMes(ref){
+  const h = HIST_CACHE.find(x=>x.ref===ref); if(!h) return;
+  const rows = (h.pessoas||[]).slice().sort((a,b)=>b.total-a.total).map(p=>`
+    <tr><td><b>${p.nome}</b></td><td><span class="chip ${teamChipByLabel(p.equipe)}">${p.equipe}</span></td>
+    <td class="num">${p.dias}</td><td class="num">${BRL(p.cache)}</td><td class="num">${BRL(p.diaria)}</td>
+    <td class="num">${BRL(p.extras)}</td><td class="num"><b>${BRL(p.total)}</b></td></tr>`).join('');
+  document.getElementById('hDetail').innerHTML = `
+    <div class="panel pad">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
+        <div><div class="eyebrow">Detalhe do mês</div><h3 style="margin:4px 0">${h.label||h.ref}</h3>
+        <div class="hint">${isoBR(h.periodo&&h.periodo.ini)} — ${isoBR(h.periodo&&h.periodo.fim)} · salvo em ${isoBR((h.geradoEm||'').slice(0,10))}</div></div>
+        <div style="text-align:right"><div class="hint">Total do mês</div><div style="font-size:22px;font-weight:700;color:var(--red)">${BRL(h.totais&&h.totais.total)}</div></div>
+      </div>
+      <div class="scroll" style="max-height:460px;margin-top:12px"><table class="tbl">
+      <thead><tr><th>Colaborador</th><th>Equipe</th><th class="num">Dias</th><th class="num">Cachê</th><th class="num">Aliment.</th><th class="num">Adic.</th><th class="num">Total</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>
+    </div>`;
+  document.getElementById('hDetail').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+function searchFuncHist(){
+  const q = (document.getElementById('hSearch').value||'').trim().toUpperCase();
+  const box = document.getElementById('hSearchResult');
+  if(!q){ box.innerHTML=''; return; }
+  if(!FB_OK){ box.innerHTML='<div class="empty">Firebase não configurado.</div>'; return; }
+  const hits=[];
+  HIST_CACHE.forEach(h=>{ (h.pessoas||[]).forEach(p=>{
+    if(p.nome.toUpperCase().includes(q)) hits.push(Object.assign({mes:h.label||h.ref, ref:h.ref}, p));
+  }); });
+  if(!hits.length){ box.innerHTML='<div class="empty">Nada encontrado nos meses salvos.</div>'; return; }
+  hits.sort((a,b)=>(b.ref||'').localeCompare(a.ref||''));
+  let tot=0; hits.forEach(x=>tot+=x.total);
+  box.innerHTML = `<div class="scroll" style="max-height:280px"><table class="tbl">
+    <thead><tr><th>Mês</th><th>Colaborador</th><th class="num">Dias</th><th class="num">Total</th></tr></thead>
+    <tbody>${hits.map(x=>`<tr><td>${x.mes}</td><td><b>${x.nome}</b></td><td class="num">${x.dias}</td><td class="num"><b>${BRL(x.total)}</b></td></tr>`).join('')}
+    <tr><td colspan="3" style="text-align:right"><b>Acumulado</b></td><td class="num"><b style="color:var(--red)">${BRL(tot)}</b></td></tr></tbody></table></div>`;
+}
+
+function renderHist(){
+  const st = document.getElementById('fbStatus');
+  if(FB_OK){ st.style.borderColor='var(--grn)';
+    st.innerHTML='<b style="color:var(--grn)">● Conectado</b> ao Firebase · projeto <span class="mono">'+firebaseConfig.projectId+'</span> · coleção <span class="mono">'+FB_COLLECTION+'</span>'; }
+  else { st.style.borderColor='var(--amber)';
+    st.innerHTML='<b style="color:var(--amber)">● Nuvem não configurada.</b> Cole a config do Firebase no topo do arquivo (bloco <span class="mono">firebaseConfig</span>) para ativar salvar e consultar meses. O restante do sistema funciona normalmente.'; }
+  const per = dataPeriod();
+  const from = document.getElementById('dashFrom').value || per.min || '';
+  if(from && !document.getElementById('hRef').value){
+    document.getElementById('hRef').value = from.slice(0,7);
+    const [y,m] = from.split('-');
+    const MN=['','Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+    document.getElementById('hLabel').value = (MN[+m]||'')+'/'+y;
+  }
+  if(!histWired){ histWired=true;
+    document.getElementById('hSave').addEventListener('click',saveFechamento);
+    document.getElementById('hReload').addEventListener('click',loadHistList);
+    document.getElementById('hSearch').addEventListener('input',searchFuncHist);
+  }
+  loadHistList();
+}
+
+/* ===================== INIT ===================== */
+function setDefaultDates(){
+  const per=dataPeriod();
+  ['dashFrom','exFrom'].forEach(id=>document.getElementById(id).value=per.min||'');
+  ['dashTo','exTo'].forEach(id=>document.getElementById(id).value=per.max||'');
+  document.getElementById('periodLbl').textContent = per.min?`${isoBR(per.min)} — ${isoBR(per.max)}`:'—';
+}
+buildEventLoc();
+fillNameSelect();
+setDefaultDates();
+renderDash();
+
+</script>
+</body>
+</html>
